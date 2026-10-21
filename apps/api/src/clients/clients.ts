@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards, NotFoundException } from '@nestjs/common';
-import { ClientStage, Prisma } from '@prisma/client';
+import { ClientStage, Prisma } from '../generated/prisma/client';
 import { IsEmail, IsEnum, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { PrismaService } from '../prisma/service';
 import { SessionGuard,assertWrite } from '../auth/auth';

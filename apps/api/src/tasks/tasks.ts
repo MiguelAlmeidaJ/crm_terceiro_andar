@@ -1,6 +1,6 @@
 import { Body,Controller,Get,Post,Patch,Param,Req,UseGuards,NotFoundException } from '@nestjs/common';
 import { IsEnum,IsISO8601,IsOptional,IsString,MaxLength } from 'class-validator';
-import { TaskPriority,TaskStatus } from '@prisma/client';
+import { TaskPriority,TaskStatus } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/service';
 import {SessionGuard,assertWrite} from '../auth/auth';
 import type {Request} from 'express';
