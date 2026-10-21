@@ -1,70 +1,60 @@
-# CRM Terceiro Andar — Nova aplicação (MVP)
+# Terceiro Andar CRM — Next.js + NestJS + Prisma
 
-Primeira implementação independente a partir da documentação do repositório `thiagoihan/crm-terceiro-andar`.
+MVP com frontend Next.js na porta **3445** e API NestJS na porta **3446**, executados diretamente por **PM2** e com dependências gerenciadas por **pnpm**. O PostgreSQL pode ser local ou subir isoladamente via Docker.
 
-## Stack
-Next.js 15 (App Router) + React 19 + TypeScript; NestJS 10 + Prisma 6; PostgreSQL 16; Docker Compose.
+## Pré-requisitos
+- Node.js **22+** e pnpm 9 (via Corepack)
+- PM2 (`npm install -g pm2`, ou `pnpm add -g pm2` quando pnpm global estiver configurado)
+- PostgreSQL 16 (local ou o contêiner isolado abaixo)
 
-## Escopo funcional já implementado
-- Login com cookie HttpOnly e senha bcrypt; sessão JWT; perfis OWNER / ADMIN / MEMBER / VIEWER (VIEWER não grava).
-- Painel com contagens do banco.
-- Listagem e cadastro de clientes, atualização da etapa comercial.
-- Quadro de funil, alterações de etapa.
-- Listagem, criação e atualização de status das tarefas.
-- Validação de dados na API, Prisma e esquema relacional inicial.
-
-**Ainda não é a migração integral do CRM original:** faltam projetos, cadência, follow-ups, estratégia, radar, arquivos, convites, mensagens, auditoria, regras finas por papel, recuperação de senha, proteção CSRF explícita e testes E2E. O esquema Prisma presente é um núcleo novo e **não corresponde às 43 tabelas do SQL proposto no repositório original**. Não importar diretamente aquele `schema.sql` aqui.
-
-## Windows 10/11 / Docker Desktop
-Instale o Docker Desktop (com WSL 2 habilitado) e execute os comandos abaixo no **PowerShell**, na pasta extraída:
+## Windows (PowerShell ou Git Bash, na raiz do projeto)
 
 ```powershell
+corepack enable
+corepack prepare pnpm@9.15.9 --activate
+npm install -g pm2
 Copy-Item .env.example .env
+# Edite as senhas e JWT_SECRET no .env antes do próximo passo.
 notepad .env
-# Defina POSTGRES_PASSWORD, JWT_SECRET e ADMIN_PASSWORD antes de subir.
-docker compose up -d --build
-docker compose exec api npx tsx prisma/seed.ts
+# Se desejar banco PostgreSQL em Docker, rode SOMENTE o banco:
+docker compose -f compose.db.yml up -d
+pnpm install
+pnpm db:generate
+pnpm db:push
+pnpm db:seed
+pnpm build
+pm2 start ecosystem.config.cjs
+pm2 status
 ```
 
-Acesse o frontend em http://localhost:3445 e a API em http://localhost:3446/api.
-Os serviços estão publicados em `127.0.0.1` e só aceitam acesso do próprio computador.
-Para recriar depois de alterar `NEXT_PUBLIC_API_URL`, execute `docker compose up -d --build`.
+Se o PostgreSQL já estiver instalado e funcionando em `localhost:5432`, **não rode** o comando Docker. O `db:seed` é idempotente para o administrador, mas suas credenciais devem ser mantidas em segredo.
 
-## Linux / Docker
-Instale Docker Engine e Docker Compose Plugin. Na pasta desta aplicação:
+Frontend: http://localhost:3445 | API: http://localhost:3446/api
 
-```bash
-cp .env.example .env
-# Altere obrigatoriamente POSTGRES_PASSWORD, JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD,
-# WEB_ORIGIN e NEXT_PUBLIC_API_URL para o domínio final com HTTPS.
-docker compose up -d --build
-# CRIAR ADMIN (uma vez, depois de o banco e API subirem):
-docker compose exec api npx tsx prisma/seed.ts
+## Atualizações
+
+```powershell
+git pull
+pnpm install --frozen-lockfile # somente depois de gerar e versionar pnpm-lock.yaml
+pnpm db:generate
+pnpm db:push # apenas para MVP/testes; em produção utilizar migrations versionadas
+pnpm build
+pm2 restart ecosystem.config.cjs --update-env
+pm2 logs
 ```
 
-**Atenção ao seed em contêiner:** `tsx` é dependência de desenvolvimento instalada no contêiner de demonstração. Em produção, recomendamos substituir por um CLI compilado e migrations versionadas.
+**Primeira instalação:** execute `pnpm install` (sem `--frozen-lockfile`) para gerar `pnpm-lock.yaml` e faça commit do lockfile.
 
-Use proxy reverso com TLS: `/` -> `127.0.0.1:3445` e `/api` -> `127.0.0.1:3446` no mesmo domínio. Configure `NEXT_PUBLIC_API_URL=https://crm.seudominio.com` e `WEB_ORIGIN=https://crm.seudominio.com`, reconstruindo a imagem do frontend. O `.env.example` vem com localhost apenas para desenvolvimento.
+## Linux (sem Docker para web/API)
 
-O serviço API usa `prisma db push` no boot **somente para acelerar o MVP**: antes de produção, crie migrations versionadas (`prisma migrate dev` em ambiente de desenvolvimento; `prisma migrate deploy` em produção). Implemente backup externo, observabilidade e homologação de autorização/CSRF antes de armazenar dados reais.
+Mesmo processo, com `cp .env.example .env`, Node.js 22+, pnpm, PM2 e PostgreSQL. Para reiniciar com o sistema: `pm2 startup` e `pm2 save` depois de validar o serviço. Recomenda-se Nginx com HTTPS na frente, banco com backup e autenticação fortalecida.
 
-## Desenvolvimento local
-```bash
-npm install
-cp .env.example .env
-# PostgreSQL local em 5432 (ou docker compose up -d db)
-npm run db:generate
-npx prisma db push --schema apps/api/prisma/schema.prisma
-npm run db:seed
-npm run dev
-```
-Next: http://localhost:3445 | Nest API: http://localhost:3446/api.
+## Arquivos
+- `ecosystem.config.cjs`: gerencia os dois serviços Node pelo PM2.
+- `pnpm-workspace.yaml`: define os workspaces.
+- `compose.db.yml`: banco de dados opcional, sem frontend/backend em contêiner.
+- `.env.example`: variáveis de ambiente, incluindo `DATABASE_URL` apontando para localhost.
 
-## Próximas etapas
-1. Transformar schema SQL original em modelo Prisma completo e migrations rastreáveis.
-2. RBAC por operação e dono de registro; CSRF e endurecimento de segurança.
-3. Módulos de projeto/etapas, relacionamento, estratégia e radar.
-4. Testes unitários, integração, E2E; backup/restauração e migração real do Claude.
+**Segurança:** não envie `.env` para o GitHub. Em produção HTTPS, o cookie de autenticação é `Secure`; para testes em HTTP localhost, caso o navegador não mantenha login, use HTTPS local ou ajuste a política de cookie especificamente para ambiente de desenvolvimento. Ainda faltam migrations, testes e proteção CSRF para produção.
 
-## Validação
-Arquivos e compactação conferidos; não foi possível executar `npm install`, `prisma generate` ou os builds nesta sessão porque o ambiente de execução não tem acesso à internet para baixar dependências. Execute esses comandos e valide o funcionamento em homologação antes de qualquer uso real.
+**Escopo:** base de login, clientes, funil e tarefas. Não é a migração completa do protótipo original.
