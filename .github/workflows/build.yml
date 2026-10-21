@@ -1,0 +1,26 @@
+name: Validate CRM
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://crm:unused@127.0.0.1:5433/crm?schema=public
+      JWT_SECRET: ci_only_secret_not_used_in_production_123456
+      WEB_ORIGIN: http://localhost:3445
+      NEXT_PUBLIC_API_URL: http://localhost:3446
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm build
